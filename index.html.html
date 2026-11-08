@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leak Locator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap">
+<style>
+:root{
+  --bg:#eef3f4; --surface:#ffffff; --ink:#12262e; --muted:#51666e; --line:#c6d4d8;
+  --pipe:#8aa1aa; --water:#1d7fa3; --leak:#d9481f; --focus:#1d7fa3;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1b21; --surface:#15272f; --ink:#e6f0f2; --muted:#9ab0b8; --line:#2a414b;
+    --pipe:#5d7883; --water:#4cb3d8; --leak:#ff7a4d; --focus:#4cb3d8; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1b21; --surface:#15272f; --ink:#e6f0f2; --muted:#9ab0b8; --line:#2a414b;
+  --pipe:#5d7883; --water:#4cb3d8; --leak:#ff7a4d; --focus:#4cb3d8; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:2rem;line-height:1.1;font-weight:800;margin:0 0 6px;letter-spacing:-.02em}
+.lead{color:var(--muted);margin:0 0 20px;max-width:46ch}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 8px 4px;margin-bottom:16px}
+.diagram svg{width:100%;height:auto;display:block}
+.read{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
+.read div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.read b{display:block;font-size:1.7rem;font-weight:800;line-height:1.15}
+.read span{color:var(--muted);font-size:.9rem}
+.margin{color:var(--muted);margin:0 0 20px;min-height:1.5em}
+.msg{border-left:4px solid var(--leak);padding:8px 12px;margin:0 0 20px;background:var(--surface);border-radius:0 8px 8px 0}
+form{display:grid;gap:14px}
+label{display:grid;gap:4px;font-weight:600}
+label small{font-weight:400;color:var(--muted)}
+input,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%;min-height:44px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){.row{grid-template-columns:1fr}}
+button{font:inherit;font-weight:600;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;cursor:pointer}
+.how{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:.95rem}
+.how code{color:var(--ink);font-weight:600}
+.demo{margin-top:32px;border-top:1px solid var(--line);padding-top:20px}
+.demo h2{font-size:1.4rem;font-weight:800;margin:0 0 6px;letter-spacing:-.01em}
+.demo .read b{font-size:1.4rem}
+.demo input[type=range]{padding:0;min-height:44px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--muted);font-size:.9rem;margin:0 0 14px}
+.legend i{display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-1px}
+#dbtn{background:var(--ink);color:var(--bg);border-color:var(--ink);margin-top:4px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Leak Locator</h1>
+  <p class="lead">Enter the pipe details and the time delay between your two sensors. The page works out where along the pipe the leak is.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 600 130" role="img" aria-label="Pipe diagram showing sensor A, sensor B and the estimated leak position">
+      <rect x="40" y="52" width="520" height="22" rx="11" fill="none" stroke="var(--pipe)" stroke-width="3"/>
+      <rect x="40" y="52" width="520" height="22" rx="11" fill="var(--water)" opacity=".18"/>
+      <circle cx="40" cy="63" r="13" fill="var(--ink)"/>
+      <circle cx="560" cy="63" r="13" fill="var(--ink)"/>
+      <text x="40" y="112" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">A</text>
+      <text x="560" y="112" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">B</text>
+      <g id="leakMark" visibility="hidden">
+        <line id="leakLine" x1="300" y1="30" x2="300" y2="96" stroke="var(--leak)" stroke-width="3" stroke-dasharray="5 4"/>
+        <circle id="leakDot" cx="300" cy="63" r="9" fill="var(--leak)"/>
+        <rect id="band" x="300" y="46" width="0" height="34" fill="var(--leak)" opacity=".22"/>
+        <text id="leakLabel" x="300" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="var(--leak)">Leak</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="read" aria-live="polite">
+    <div><b id="fromA">–</b><span>from sensor A</span></div>
+    <div><b id="fromB">–</b><span>from sensor B</span></div>
+  </div>
+  <p class="margin" id="margin"></p>
+  <p class="msg" id="msg" hidden></p>
+
+  <form id="f" onsubmit="return false">
+    <label>Pipe length between sensors (m)
+      <input id="len" type="number" inputmode="decimal" min="1" step="any" value="100">
+    </label>
+    <div class="row">
+      <label>Pipe material
+        <select id="mat">
+          <option value="1200">Cast or ductile iron</option>
+          <option value="1250">Steel</option>
+          <option value="1000">Asbestos cement</option>
+          <option value="450">PVC</option>
+          <option value="250">HDPE</option>
+          <option value="custom">Custom speed</option>
+        </select>
+      </label>
+      <label>Wave speed (m/s)
+        <input id="spd" type="number" inputmode="decimal" min="1" step="any" value="1200">
+      </label>
+    </div>
+    <div class="row">
+      <label>Which sensor heard the leak first?
+        <select id="first">
+          <option value="A">Sensor A</option>
+          <option value="B">Sensor B</option>
+        </select>
+      </label>
+      <label>Time delay between sensors (ms)
+        <input id="dly" type="number" inputmode="decimal" min="0" step="any" placeholder="e.g. 20">
+      </label>
+    </div>
+    <label>Timing uncertainty (ms)
+      <small>How exactly the two sensor clocks are matched. Used for the ± margin.</small>
+      <input id="unc" type="number" inputmode="decimal" min="0" step="any" value="1">
+    </label>
+    <button type="button" id="reset">Clear delay</button>
+  </form>
+
+  <section class="demo" aria-labelledby="demoH">
+    <h2 id="demoH">Live demo</h2>
+    <p class="lead">Two simulated sensors listen to a leak once a second. Both methods estimate where it is. It uses the pipe length and wave speed from above.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 600 130" role="img" aria-label="Pipe showing the true leak position and the two estimates">
+        <rect x="40" y="54" width="520" height="22" rx="11" fill="var(--water)" opacity=".18" stroke="var(--pipe)" stroke-width="3"/>
+        <circle cx="40" cy="65" r="11" fill="var(--ink)"/><circle cx="560" cy="65" r="11" fill="var(--ink)"/>
+        <g id="dMarks" visibility="hidden">
+          <line id="dTrue" x1="300" y1="26" x2="300" y2="104" stroke="var(--leak)" stroke-width="3" stroke-dasharray="5 4"/>
+          <rect id="dCC" x="294" y="36" width="12" height="12" fill="var(--ink)"/>
+          <circle id="dPH" cx="300" cy="92" r="7" fill="var(--water)"/>
+        </g>
+      </svg>
+    </div>
+    <p class="legend"><span><i style="background:var(--leak)"></i>True leak</span><span><i style="background:var(--ink)"></i>Cross-correlation</span><span><i style="background:var(--water);border-radius:50%"></i>GCC-PHAT</span></p>
+    <div class="read" aria-live="polite">
+      <div><b id="ccPos">–</b><span>Cross-correlation</span><br><span id="ccErr"></span></div>
+      <div><b id="phPos">–</b><span>GCC-PHAT</span><br><span id="phErr"></span></div>
+    </div>
+    <div class="msg" style="margin-top:14px" id="dnote">Press start to run the simulation.</div>
+    <div style="display:grid;gap:14px">
+      <label>Leak position: <span id="dposv">35 m</span> from sensor A
+        <input id="dpos" type="range" min="0" max="100" step="0.5" value="35">
+      </label>
+      <label>Noise level: <span id="dsnrv">-10 dB</span>
+        <small>Lower is noisier. Try going below -10 dB.</small>
+        <input id="dsnr" type="range" min="-20" max="20" step="1" value="-10">
+      </label>
+      <button type="button" id="dbtn">Start live demo</button>
+    </div>
+  </section>
+
+  <div class="how">
+    <p>The calculation is <code>x = (L + v·τ) / 2</code>, where L is the pipe length, v the wave speed and τ the arrival time at A minus the arrival time at B. Wave speeds are typical values. Use a measured speed for your pipe if you have one.</p>
+    <p>This tool is a design demonstration based on simulation. It has not been tested on real pipes, so confirm a location before any excavation.</p>
+  </div>
+</main>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var len=$('len'),mat=$('mat'),spd=$('spd'),first=$('first'),dly=$('dly'),unc=$('unc');
+  var X0=40,W=520;
+
+  function fmt(n){return (Math.round(n*100)/100).toFixed(2).replace(/\.?0+$/,'')+' m'}
+  function showMsg(t){var m=$('msg');if(t){m.textContent=t;m.hidden=false}else{m.hidden=true}}
+  function clearOut(){
+    $('fromA').textContent='–';$('fromB').textContent='–';
+    $('margin').textContent='';$('leakMark').setAttribute('visibility','hidden');
+  }
+
+  function calc(){
+    var L=parseFloat(len.value),v=parseFloat(spd.value),d=parseFloat(dly.value),u=parseFloat(unc.value)||0;
+    showMsg('');
+    if(!(L>0)||!(v>0)){clearOut();showMsg('Enter a pipe length and a wave speed greater than zero.');return}
+    if(isNaN(d)){clearOut();$('margin').textContent='Enter the time delay to see the leak position.';return}
+    if(d<0){clearOut();showMsg('The delay cannot be negative. Choose which sensor heard the leak first instead.');return}
+    var maxMs=L/v*1000;
+    if(d>maxMs+1e-9){
+      clearOut();
+      showMsg('A delay of '+d+' ms is not possible for this pipe. The largest possible delay is '+(Math.round(maxMs*100)/100)+' ms. Check the units, the pipe length and the wave speed.');
+      return;
+    }
+    var tau=(first.value==='A'?-d:d)/1000;
+    var x=(L+v*tau)/2;
+    x=Math.min(Math.max(x,0),L);
+    var err=v*(u/1000)/2;
+    $('fromA').textContent=fmt(x);
+    $('fromB').textContent=fmt(L-x);
+    $('margin').textContent='Margin of error: about ± '+fmt(err)+' from the timing uncertainty.';
+
+    var px=X0+(x/L)*W, bw=Math.min((err/L)*W,W);
+    var lo=Math.max(px-bw,X0), hi=Math.min(px+bw,X0+W);
+    $('leakMark').setAttribute('visibility','visible');
+    $('leakLine').setAttribute('x1',px);$('leakLine').setAttribute('x2',px);
+    $('leakDot').setAttribute('cx',px);
+    $('band').setAttribute('x',lo);$('band').setAttribute('width',hi-lo);
+    var lx=Math.min(Math.max(px,60),540);
+    $('leakLabel').setAttribute('x',lx);
+  }
+
+  mat.addEventListener('change',function(){
+    if(mat.value!=='custom'){spd.value=mat.value}
+    calc();
+  });
+  spd.addEventListener('input',function(){
+    var match=false;
+    for(var i=0;i<mat.options.length;i++){if(mat.options[i].value===spd.value){mat.selectedIndex=i;match=true}}
+    if(!match){mat.value='custom'}
+    calc();
+  });
+  [len,first,dly,unc].forEach(function(el){el.addEventListener('input',calc);el.addEventListener('change',calc)});
+  $('reset').addEventListener('click',function(){dly.value='';calc();dly.focus()});
+  calc();
+
+  /* ---------- live demo ---------- */
+  var N=4096,FS=2000,F1=50,F2=800,timer=null,hist={cc:[],ph:[]};
+  var dpos=$('dpos'),dsnr=$('dsnr'),dbtn=$('dbtn');
+
+  function fft(re,im,inv){
+    var n=re.length,i,j,k,t,bit,sz;
+    for(i=1,j=0;i<n;i++){
+      bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;
+      if(i<j){t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}
+    }
+    for(sz=2;sz<=n;sz<<=1){
+      var ang=2*Math.PI/sz*(inv?1:-1),wr=Math.cos(ang),wi=Math.sin(ang);
+      for(i=0;i<n;i+=sz){
+        var cr=1,ci=0;
+        for(k=0;k<sz/2;k++){
+          var a=i+k,b=i+k+sz/2;
+          var tr=re[b]*cr-im[b]*ci,ti=re[b]*ci+im[b]*cr;
+          re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti;
+          var nr=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=nr;
+        }
+      }
+    }
+    if(inv){for(i=0;i<n;i++){re[i]/=n;im[i]/=n}}
+  }
+  function gauss(){var u=1-Math.random(),w=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w)}
+
+  function simulate(L,v,x,snr){
+    var re=new Float64Array(N),im=new Float64Array(N),i,k,kk,f;
+    for(i=0;i<N;i++)re[i]=gauss();
+    fft(re,im,false);
+    var ar=new Float64Array(N),ai=new Float64Array(N),br=new Float64Array(N),bi=new Float64Array(N);
+    var tA=x/v,tB=(L-x)/v;
+    for(k=0;k<N;k++){
+      kk=k<=N/2?k:k-N;f=kk*FS/N;
+      if(Math.abs(f)>=F1&&Math.abs(f)<=F2){
+        var pa=-2*Math.PI*f*tA,pb=-2*Math.PI*f*tB;
+        ar[k]=re[k]*Math.cos(pa)-im[k]*Math.sin(pa);ai[k]=re[k]*Math.sin(pa)+im[k]*Math.cos(pa);
+        br[k]=re[k]*Math.cos(pb)-im[k]*Math.sin(pb);bi[k]=re[k]*Math.sin(pb)+im[k]*Math.cos(pb);
+      }
+    }
+    fft(ar,ai,true);fft(br,bi,true);
+    var p=0;for(i=0;i<N;i++)p+=ar[i]*ar[i];p/=N;
+    var s=Math.sqrt(p/Math.pow(10,snr/10));
+    for(i=0;i<N;i++){ar[i]+=s*gauss();br[i]+=s*gauss()}
+    return [ar,br];
+  }
+
+  function locate(a,b,L,v,phat){
+    var A=a.slice(),B=b.slice(),ai=new Float64Array(N),bi=new Float64Array(N),k;
+    fft(A,ai,false);fft(B,bi,false);
+    var cr=new Float64Array(N),ci=new Float64Array(N);
+    for(k=0;k<N;k++){
+      var r=A[k]*B[k]+ai[k]*bi[k],q=ai[k]*B[k]-A[k]*bi[k];
+      if(phat){
+        var m=Math.sqrt(r*r+q*q),kk=k<=N/2?k:k-N,f=Math.abs(kk*FS/N);
+        if(m<1e-12||f<F1||f>F2){r=0;q=0}else{r/=m;q/=m}
+      }
+      cr[k]=r;ci[k]=q;
+    }
+    fft(cr,ci,true);
+    var maxLag=Math.min(Math.floor(L/v*FS)+1,N/2-2),best=-Infinity,bm=0,j;
+    for(j=-maxLag;j<=maxLag;j++){var val=cr[(j+N)%N];if(val>best){best=val;bm=j}}
+    var y0=cr[(bm-1+N)%N],y1=cr[(bm+N)%N],y2=cr[(bm+1+N)%N],den=y0-2*y1+y2;
+    var sh=den!==0?0.5*(y0-y2)/den:0,tau=(bm+sh)/FS;
+    return Math.min(Math.max((L+v*tau)/2,0),L);
+  }
+
+  function rmse(arr){var s=0;arr.forEach(function(e){s+=e*e});return Math.sqrt(s/arr.length)}
+
+  function tick(){
+    var L=parseFloat(len.value),v=parseFloat(spd.value);
+    if(!(L>0)||!(v>0)){$('dnote').textContent='Enter a valid pipe length and wave speed above.';return}
+    var x=Math.min(parseFloat(dpos.value),L),snr=parseFloat(dsnr.value);
+    var sig=simulate(L,v,x,snr);
+    var res={cc:locate(sig[0],sig[1],L,v,false),ph:locate(sig[0],sig[1],L,v,true)};
+    ['cc','ph'].forEach(function(key){
+      var e=res[key]-x;hist[key].push(e);if(hist[key].length>20)hist[key].shift();
+      $(key+'Pos').textContent=fmt(res[key]);
+      $(key+'Err').textContent='error '+fmt(Math.abs(e))+', recent RMSE '+fmt(rmse(hist[key]));
+    });
+    var px=function(m){return X0+(m/L)*W};
+    $('dMarks').setAttribute('visibility','visible');
+    $('dTrue').setAttribute('x1',px(x));$('dTrue').setAttribute('x2',px(x));
+    $('dCC').setAttribute('x',px(res.cc)-6);
+    $('dPH').setAttribute('cx',px(res.ph));
+    $('dnote').textContent='True leak at '+fmt(x)+' from sensor A. Updated every second.';
+  }
+
+  function syncDemo(){
+    var L=parseFloat(len.value);
+    if(L>0){dpos.max=L;if(parseFloat(dpos.value)>L)dpos.value=L}
+    $('dposv').textContent=fmt(parseFloat(dpos.value));
+    $('dsnrv').textContent=dsnr.value+' dB';
+    hist.cc=[];hist.ph=[];
+  }
+  [dpos,dsnr,len,spd].forEach(function(el){el.addEventListener('input',syncDemo)});
+  dbtn.addEventListener('click',function(){
+    if(timer){clearInterval(timer);timer=null;dbtn.textContent='Start live demo';$('dnote').textContent='Paused.';return}
+    syncDemo();tick();timer=setInterval(tick,1000);dbtn.textContent='Pause';
+  });
+  syncDemo();
+})();
+</script>
+</body>
+</html>
